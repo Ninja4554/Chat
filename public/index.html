@@ -24,6 +24,8 @@
       border-radius: 10px;
       background: #1f1f1f;
       padding: 10px;
+      display: flex;
+      flex-direction: column;
     }
     .msg {
       padding: 10px;
@@ -31,6 +33,7 @@
       max-width: 70%;
       border-radius: 15px;
       animation: fadeIn 0.2s ease-in-out;
+      word-break: break-word;
     }
     .me {
       background: #4f46e5;
@@ -46,8 +49,9 @@
     #input-area {
       display: flex;
       margin-top: 10px;
+      gap: 5px;
     }
-    input {
+    input[type="text"] {
       flex: 1;
       padding: 10px;
       border-radius: 5px;
@@ -61,12 +65,16 @@
       border: none;
       color: white;
       border-radius: 5px;
-      margin-left: 10px;
     }
     #typing {
       margin-top: 5px;
       font-size: 0.9em;
       color: #aaa;
+    }
+    img, video {
+      max-width: 200px;
+      border-radius: 10px;
+      margin-top: 5px;
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(5px); }
@@ -79,7 +87,8 @@
     <ul id="messages"></ul>
     <div id="typing"></div>
     <div id="input-area">
-      <input id="m" placeholder="Type a message" autocomplete="off">
+      <input id="m" type="text" placeholder="Type a message" autocomplete="off">
+      <input type="file" id="fileInput" accept="image/*,video/*">
       <button onclick="sendMsg()">Send</button>
     </div>
   </div>
@@ -87,26 +96,68 @@
   <script>
     const socket = io();
     const input = document.getElementById('m');
+    const fileInput = document.getElementById('fileInput');
     const messages = document.getElementById('messages');
     const typing = document.getElementById('typing');
     let isTyping = false;
     const username = prompt("Enter your nickname", "bro");
 
     function sendMsg() {
-      const msg = input.value.trim();
-      if (msg) {
-        socket.emit('chat message', { name: username, msg });
-        appendMsg(msg, 'me');
+      const msgText = input.value.trim();
+      const file = fileInput.files[0];
+
+      // Handle file send
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result;
+          const fileType = file.type.startsWith('image') ? 'image' : 'video';
+          const data = {
+            name: username,
+            type: fileType,
+            file: base64
+          };
+          socket.emit('chat message', data);
+          appendMsg(data, 'me');
+          fileInput.value = '';
+        };
+        reader.readAsDataURL(file);
+        input.value = '';
+        socket.emit('typing', false);
+        isTyping = false;
+        return;
+      }
+
+      // Handle text send
+      if (msgText) {
+        const data = { name: username, type: 'text', msg: msgText };
+        socket.emit('chat message', data);
+        appendMsg(data, 'me');
         input.value = '';
         socket.emit('typing', false);
         isTyping = false;
       }
     }
 
-    function appendMsg(msg, sender) {
+    function appendMsg(data, sender) {
       const li = document.createElement('li');
       li.className = `msg ${sender}`;
-      li.textContent = msg;
+
+      if (data.type === 'text') {
+        li.textContent = sender === 'me' ? data.msg : `${data.name}: ${data.msg}`;
+      } else if (data.type === 'image') {
+        const img = document.createElement('img');
+        img.src = data.file;
+        li.innerHTML = sender === 'me' ? 'Image:' : `${data.name}:<br>`;
+        li.appendChild(img);
+      } else if (data.type === 'video') {
+        const vid = document.createElement('video');
+        vid.src = data.file;
+        vid.controls = true;
+        li.innerHTML = sender === 'me' ? 'Video:' : `${data.name}:<br>`;
+        li.appendChild(vid);
+      }
+
       messages.appendChild(li);
       messages.scrollTop = messages.scrollHeight;
     }
@@ -125,7 +176,7 @@
 
     socket.on('chat message', data => {
       if (data.name !== username) {
-        appendMsg(`${data.name}: ${data.msg}`, 'you');
+        appendMsg(data, 'you');
       }
     });
 
