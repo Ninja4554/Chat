@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BroChat 💬</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #121212;
+      color: white;
+    }
+    #chat-container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #messages {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 10px;
+      background: #1f1f1f;
+      padding: 10px;
+    }
+    .msg {
+      padding: 10px;
+      margin: 10px;
+      max-width: 70%;
+      border-radius: 15px;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .me {
+      background: #4f46e5;
+      align-self: flex-end;
+      color: white;
+      margin-left: auto;
+    }
+    .you {
+      background: #2d2d2d;
+      color: #eee;
+      margin-right: auto;
+    }
+    #input-area {
+      display: flex;
+      margin-top: 10px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      background: #222;
+      color: white;
+    }
+    button {
+      padding: 10px 20px;
+      background: #4f46e5;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      margin-left: 10px;
+    }
+    #typing {
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #aaa;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <ul id="messages"></ul>
+    <div id="typing"></div>
+    <div id="input-area">
+      <input id="m" placeholder="Type a message" autocomplete="off">
+      <button onclick="sendMsg()">Send</button>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const input = document.getElementById('m');
+    const messages = document.getElementById('messages');
+    const typing = document.getElementById('typing');
+    let isTyping = false;
+    const username = prompt("Enter your nickname", "bro");
+
+    function sendMsg() {
+      const msg = input.value.trim();
+      if (msg) {
+        socket.emit('chat message', { name: username, msg });
+        appendMsg(msg, 'me');
+        input.value = '';
+        socket.emit('typing', false);
+        isTyping = false;
+      }
+    }
+
+    function appendMsg(msg, sender) {
+      const li = document.createElement('li');
+      li.className = `msg ${sender}`;
+      li.textContent = msg;
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMsg();
+      if (!isTyping) {
+        socket.emit('typing', true);
+        isTyping = true;
+        setTimeout(() => {
+          socket.emit('typing', false);
+          isTyping = false;
+        }, 2000);
+      }
+    });
+
+    socket.on('chat message', data => {
+      if (data.name !== username) {
+        appendMsg(`${data.name}: ${data.msg}`, 'you');
+      }
+    });
+
+    socket.on('typing', someoneTyping => {
+      typing.innerText = someoneTyping ? 'Typing...' : '';
+    });
+  </script>
+</body>
+</html>
